@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<p>IPFS掲示板</p>
+</p>メリット</br>・サーバーを使わないから費用が浮く</br>デメリット</br>・この段階だとアクセス数が0になるとデータが全て飛ぶ</br>
+<style>
+body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 1em;
+}
+#formContainer {
+    max-width: 400px;
+    margin-bottom: 1em;
+}
+input, textarea {
+    width: 100%;
+    display: block;
+    margin-bottom: 0.5em;
+}
+button {
+    width: auto;
+    max-width: 150px;
+    display: block;
+}
+#posts {
+    max-width: 400px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+.post {
+    margin-bottom: 0.5em;
+}
+</style>
+</head>
+<body>
+<div id="formContainer">
+    </br>
+　<input type="text" id="name" placeholder="名前">
+    <textarea id="message" placeholder="投稿内容"></textarea>
+    <button id="postBtn">書き込む</button>
+</div>
+<div id="posts"></div>
+<script type="module">
+import { create } from 'https://cdn.jsdelivr.net/npm/ipfs-core/dist/index.min.js';
+const ipfs = await create();
+const postsDiv = document.getElementById('posts');
+const postBtn = document.getElementById('postBtn');
+const nameInput = document.getElementById('name');
+const messageInput = document.getElementById('message');
+const TOPIC = 'ipfs-bbs';
+function addPostToDOM(name, text, cid) {
+    const div = document.createElement('div');
+    div.textContent = `${name}: ${text} (CID: ${cid})`;
+    postsDiv.appendChild(div);
+    postsDiv.scrollTop = postsDiv.scrollHeight;
+}
+await ipfs.pubsub.subscribe(TOPIC, msg => {
+    try {
+        const data = JSON.parse(new TextDecoder().decode(msg.data));
+        addPostToDOM(data.name, data.text, data.cid);
+    } catch(e) { console.error(e); }
+});
+postBtn.addEventListener('click', async () => {
+    const name = nameInput.value.trim() || '名無し';
+    const text = messageInput.value.trim();
+    if (!text) return alert('投稿内容を入力してください');
+    const { cid } = await ipfs.add(JSON.stringify({ name, text, timestamp: Date.now() }));
+    const message = JSON.stringify({ name, text, cid: cid.toString() });
+    await ipfs.pubsub.publish(TOPIC, new TextEncoder().encode(message));
+    addPostToDOM(name, text, cid.toString());
+    messageInput.value = '';
+});
+</script>
+</body>
+</html>
